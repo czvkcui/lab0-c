@@ -91,8 +91,28 @@ error:
  */
 bool q_insert_tail(queue_t *q, char *s)
 {
-    /* You need to write the complete code for this function */
-    /* Remember: It should operate in O(1) time */
+    list_ele_t *newh = malloc(sizeof(list_ele_t));
+    int len = strlen(s);
+    if (!q) goto error;
+    if (!newh) goto error;
+    newh->value = malloc((len + 1) * sizeof(char));
+    if (!newh->value) goto error;
+    strncpy(newh->value, s, len);
+    newh->value[len] = '\0';
+    newh->next = NULL;
+
+    if (!q->tail)
+    {
+        q->head = newh;
+        q->tail = newh;
+    }
+
+    q->tail->next = newh;
+    q->tail = newh;
+    q->size++;
+    return true;
+error:
+    if (newh) free(newh);
     return false;
 }
 
