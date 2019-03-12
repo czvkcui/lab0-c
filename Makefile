@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -O0 -g -Wall -Werror
+LISTDIR = ../linux-list
+CFLAGS = -O0 -g -Wall -Werror -I$(LISTDIR)/include -I$(LISTDIR)/private
 
 GIT_HOOKS := .git/hooks/applied
 all: $(GIT_HOOKS) qtest

@@ -1,5 +1,6 @@
 /* Implementation of testing code for queue code */
 
+#include <assert.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
@@ -23,8 +24,13 @@
 */
 #include "queue.h"
 
+#include "common.h"
 #include "console.h"
 #include "report.h"
+
+/* Link list support */
+#include "list.h"
+#include "list_sort.h"
 
 /***** Settable parameters *****/
 
@@ -33,7 +39,7 @@
   This affects how it gets printed
   and whether cautious mode is used when freeing the list
 */
-#define BIG_QUEUE 30
+#define BIG_QUEUE 50
 
 int big_queue_size = BIG_QUEUE;
 
@@ -43,6 +49,12 @@ int big_queue_size = BIG_QUEUE;
 queue_t *q = NULL;
 /* Number of elements in queue */
 size_t qcnt = 0;
+/* Testing array */
+uint16_t *array = NULL;
+size_t arr_cnt = 0;
+
+/* List being tested */
+struct list_head *list = NULL;
 
 /* How many times can queue operations fail */
 int fail_limit = BIG_QUEUE;
@@ -52,6 +64,8 @@ int string_length = MAXSTRING;
 
 /****** Forward declarations ******/
 static bool show_queue(int vlevel);
+static bool show_list(int vlevel);
+static bool show_array(int vlevel);
 bool do_new(int argc, char *argv[]);
 bool do_free(int argc, char *argv[]);
 bool do_insert_head(int argc, char *argv[]);
@@ -61,6 +75,13 @@ bool do_remove_head_quiet(int argc, char *argv[]);
 bool do_reverse(int argc, char *argv[]);
 bool do_size(int argc, char *argv[]);
 bool do_show(int argc, char *argv[]);
+bool do_generate_shuffle(int argc, char *argv[]);
+bool do_new_list(int argc, char *argv[]);
+bool do_list_insert_elements(int argc, char *argv[]);
+bool do_list_free(int argc, char *argv[]);
+bool do_list_sort(int argc, char *argv[]);
+bool do_show_list(int argc, char *argv[]);
+bool do_show_array(int argc, char *argv[]);
 
 static void queue_init();
 
@@ -83,13 +104,159 @@ static void console_init()
     add_cmd("reverse", do_reverse, "                | Reverse queue");
     add_cmd("size", do_size,
             " [n]            | Compute queue size n times (default: n == 1)");
-    add_cmd("show", do_show, "                | Show queue contents");
+    add_cmd("show", do_show, "                | Show queue contents ");
+    add_cmd("gsh", do_generate_shuffle,
+            "[n]             | Generate shuffle array ");
+    add_cmd("showa", do_show_array, "                | Show array contents ");
+    add_cmd("newl", do_new_list, "                | Create new list ");
+    add_cmd("iel", do_list_insert_elements,
+            "                | Insert shuffle array into list ");
+    add_cmd("freel", do_list_free, "                | Delete list ");
+    add_cmd("sl", do_list_sort, " [n]            | Sort list");
+    add_cmd("showl", do_show_list, "                | Show list contents");
     add_param("length", &string_length, "Maximum length of displayed string",
               NULL);
     add_param("malloc", &fail_probability, "Malloc failure probability percent",
               NULL);
     add_param("fail", &fail_limit,
               "Number of times allow queue operations to return false", NULL);
+}
+
+bool do_generate_shuffle(int argc, char *argv[])
+{
+    if (argc != 2) {
+        report(1, "%s need len of array", argv[0]);
+        return false;
+    }
+    bool ok = true;
+    int len = atoi(argv[1]);
+    if (array != NULL) {
+        report(3, "Freeing old array");
+        free(array);
+    }
+    error_check();
+    if (exception_setup(true))
+        array = malloc(len * (sizeof(uint16_t)));
+    exception_cancel();
+
+    if (exception_setup(true))
+        random_shuffle_array(array, len);
+    exception_cancel();
+    arr_cnt = len;
+    show_array(3);
+    return ok && !error_check();
+}
+
+static bool list_free_entry(struct list_head *list)
+{
+    int i = 0;
+    struct listitem *item = NULL, *is = NULL;
+    list_for_each_entry_safe(item, is, list, list)
+    {
+        list_del(&item->list);
+        free(item);
+        i++;
+    }
+    return true;
+}
+
+static bool list_entries_insert(struct list_head *list,
+                                uint16_t *array,
+                                size_t len)
+{
+    int i = 0;
+    struct listitem *item = NULL;
+    for (i = 0; i < len; i++) {
+        item = (struct listitem *) malloc(sizeof(*item));
+        assert(item);
+        item->i = array[i];
+        list_add_tail(&item->list, list);
+    }
+    return true;
+}
+
+bool do_new_list(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguemnts", argv[0]);
+        return false;
+    }
+    bool ok = true;
+    if (list != NULL) {
+        report(3, "Freeing old link list");
+        ok = list_free_entry(list);
+    }
+    error_check();
+    if (exception_setup(true)) {
+        list = malloc(sizeof(struct list_head));
+        INIT_LIST_HEAD(list);
+    }
+    exception_cancel();
+    show_list(3);
+    return ok && !error_check();
+}
+
+bool do_list_insert_elements(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguemnts", argv[0]);
+        return false;
+    }
+    bool ok = true;
+    if (array == NULL) {
+        report(1, "Error: You must generate shuffle array first!");
+        return false;
+    }
+    error_check();
+    if (list == NULL) {
+        report(1, "Error: You must initialize list first!");
+        return false;
+    }
+    error_check();
+    if (exception_setup(true))
+        list_entries_insert(list, array, arr_cnt);
+    exception_cancel();
+    show_list(3);
+    return ok && !error_check();
+}
+
+bool do_list_free(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+    bool ok = true;
+    if (list == NULL)
+        report(3, "Warning: Calling free on null queue");
+    error_check();
+    if (exception_setup(true))
+        ok = list_free_entry(list);
+    exception_cancel();
+    return ok && !error_check();
+}
+
+bool do_list_sort(int argc, char *argv[])
+{
+    if (argc != 2) {
+        report(1, "%s need sort method", argv[0]);
+        return false;
+    }
+    bool ok = true;
+    int sort_method = atoi(argv[1]);
+    if (sort_method > INSERT_SORT || sort_method < QUICK_SORT) {
+        report(1, "Error: sort method not define");
+        return false;
+    }
+
+    if (list == NULL) {
+        report(1, "Error: list is null, initialize it and shuffle it first");
+        return false;
+    }
+    if (exception_setup(true))
+        list_sort(list, sort_method);
+    exception_cancel();
+    return ok && !error_check();
 }
 
 bool do_new(int argc, char *argv[])
@@ -428,6 +595,73 @@ bool do_size(int argc, char *argv[])
     return ok && !error_check();
 }
 
+static bool show_array(int vlevel)
+{
+    bool ok = true;
+    if (verblevel < vlevel)
+        return true;
+    int cnt = 0;
+    if (array == NULL) {
+        report(vlevel, "array = NULL");
+        return true;
+    }
+    report_noreturn(vlevel, "array = [");
+    uint16_t *e = array;
+    if (exception_setup(true)) {
+        while (ok && e && cnt < arr_cnt) {
+            if (cnt < big_queue_size)
+                report_noreturn(vlevel, cnt == 0 ? "%d" : " %d", *e);
+            cnt++;
+            e++;
+            ok = ok && !error_check();
+        }
+    }
+    exception_cancel();
+    if (!ok) {
+        report(vlevel, " ... ]");
+        return false;
+    }
+    if (cnt <= big_queue_size)
+        report(vlevel, "]");
+    else
+        report(vlevel, " ... ]");
+    return ok;
+}
+
+static bool show_list(int vlevel)
+{
+    bool ok = true;
+    if (verblevel < vlevel)
+        return true;
+    int cnt = 0;
+    if (list == NULL || list_empty(list)) {
+        report(vlevel, "list = NULL");
+        return true;
+    }
+    report_noreturn(vlevel, "list = [");
+    struct list_head *e = list->next;
+    if (exception_setup(true)) {
+        while (ok && e && cnt < arr_cnt) {
+            if (cnt < big_queue_size)
+                report_noreturn(vlevel, cnt == 0 ? "%d" : " %d",
+                                list_entry(e, struct listitem, list)->i);
+            e = e->next;
+            cnt++;
+            ok = ok && !error_check();
+        }
+    }
+    exception_cancel();
+    if (!ok) {
+        report(vlevel, " ... ]");
+        return false;
+    }
+    if (cnt <= big_queue_size)
+        report(vlevel, "]");
+    else
+        report(vlevel, " ... ]");
+    return ok;
+}
+
 static bool show_queue(int vlevel)
 {
     bool ok = true;
@@ -477,6 +711,24 @@ bool do_show(int argc, char *argv[])
         return false;
     }
     return show_queue(0);
+}
+
+bool do_show_array(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+    return show_array(0);
+}
+
+bool do_show_list(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+    return show_list(0);
 }
 
 /* Signal handlers */
