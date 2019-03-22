@@ -31,6 +31,11 @@ valgrind: qtest valgrind_existence
 	@echo "Test with specific case by running command:" 
 	@echo "scripts/driver.py -p $(patched_file) --valgrind -t <tid>"
 
+benchmark:
+	./qtest -f traces/trace-list.cmd
+plot:
+	gnuplot plot.gp
+
 clean:
 	rm -f *.o *~ qtest /tmp/qtest.*
 	rm -rf *.dSYM

@@ -50,7 +50,8 @@ static bool noallocate_mode = false;
 static bool error_occurred = false;
 static char *error_message = "";
 
-static int time_limit = 1;
+/* time limit(seconds) */
+static int time_limit = 20;
 
 /*
  * Data for managing exceptions

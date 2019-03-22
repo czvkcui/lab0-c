@@ -75,6 +75,7 @@ bool do_source_cmd(int argc, char *argv[]);
 bool do_log_cmd(int argc, char *argv[]);
 bool do_time_cmd(int argc, char *argv[]);
 bool do_comment_cmd(int argc, char *argv[]);
+bool do_output_result(int argc, char *argv[]);
 
 static void init_in();
 
@@ -102,6 +103,8 @@ void init_cmd()
     add_param("verbose", &verblevel, "Verbosity level", NULL);
     add_param("error", &err_limit, "Number of errors until exit", NULL);
     add_param("echo", &echo, "Do/don't echo commands", NULL);
+    add_cmd("flurt", do_output_result,
+            " file cmd ...   | Flush output into files");
 #if 0
     add_param("megabytes", &mblimit, "Maximum megabytes allowed", NULL);
     add_param("seconds", &timelimit, "Maximum seconds allowed",
@@ -413,16 +416,31 @@ bool do_time_cmd(int argc, char *argv[])
     bool ok = true;
     if (argc <= 1) {
         double elapsed = last_time - first_time;
-        report(1, "Elapsed time = %.3f, Delta time = %.3f", elapsed, delta);
+        report(1, "Elapsed time = %.6f, Delta time = %.6f", elapsed, delta);
     } else {
         ok = interpret_cmda(argc - 1, argv + 1);
         if (block_flag) {
             block_timing = true;
         } else {
             delta = delta_time(&last_time);
-            report(1, "Delta time = %.3f", delta);
+            report(1, "Delta time = %.6f", delta);
         }
     }
+    return ok;
+}
+
+bool do_output_result(int argc, char *argv[])
+{
+    if (argc < 1) {
+        report(1, "%s need output file name", argv[0]);
+        return false;
+    }
+
+    FILE *file = fopen(argv[1], "a");
+    init_files(stdout, file);
+    bool ok = interpret_cmda(argc - 2, argv + 2);
+    init_files(stdout, stdin);
+    fclose(file);
     return ok;
 }
 

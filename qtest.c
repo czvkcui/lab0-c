@@ -52,10 +52,8 @@ size_t qcnt = 0;
 /* Testing array */
 uint16_t *array = NULL;
 size_t arr_cnt = 0;
-
 /* List being tested */
 struct list_head *list = NULL;
-
 /* How many times can queue operations fail */
 int fail_limit = BIG_QUEUE;
 int fail_count = 0;
@@ -106,7 +104,7 @@ static void console_init()
             " [n]            | Compute queue size n times (default: n == 1)");
     add_cmd("show", do_show, "                | Show queue contents ");
     add_cmd("gsh", do_generate_shuffle,
-            "[n]             | Generate shuffle array ");
+            " [n]            | Generate shuffle array ");
     add_cmd("showa", do_show_array, "                | Show array contents ");
     add_cmd("newl", do_new_list, "                | Create new list ");
     add_cmd("iel", do_list_insert_elements,
